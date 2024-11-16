@@ -26,6 +26,7 @@ function App() {
   const userVideo = useRef();
   const connectionRef = useRef();
 
+  // Setup media stream and socket events
   useEffect(() => {
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
@@ -39,14 +40,20 @@ function App() {
     socket.on("me", (id) => {
       setMe(id);
     });
+
     socket.on("callUser", (data) => {
       setReceivingCall(true);
       setCaller(data.from);
       setName(data.name);
       setCallerSignal(data.signal);
     });
+
+    return () => {
+      socket.off("callUser"); // Clean up the event listener
+    };
   }, []);
 
+  // Function to start a call
   const callUser = (id) => {
     const peer = new Peer({
       initiator: true,
@@ -55,11 +62,11 @@ function App() {
     });
 
     peer.on("signal", (data) => {
-      console.log("Sending signal to", id, data); // Log tín hiệu được gửi đi
+      console.log("Sending signal to", id, data);
       socket.emit("callUser", {
         userToCall: id,
         signalData: data,
-        from: me,
+        from: socket.id,
         name: name
       });
     });
@@ -76,14 +83,7 @@ function App() {
     connectionRef.current = peer;
   };
 
-  socket.on("callUser", (data) => {
-    console.log("Received callUser with signal data:", data); // Log tín hiệu nhận được
-    setReceivingCall(true);
-    setCaller(data.from);
-    setName(data.name);
-    setCallerSignal(data.signal); // Lưu tín hiệu người gọi
-  });
-
+  // Function to answer a call
   const answerCall = () => {
     setCallAccepted(true);
     const peer = new Peer({
@@ -100,7 +100,6 @@ function App() {
       userVideo.current.srcObject = stream;
     });
 
-    // Ensure the peer is fully initialized before calling signal
     if (callerSignal) {
       peer.signal(callerSignal);
     } else {
@@ -108,8 +107,9 @@ function App() {
     }
 
     connectionRef.current = peer;
-  }
+  };
 
+  // Function to leave the call
   const leaveCall = () => {
     setCallEnded(true);
     connectionRef.current.destroy();
